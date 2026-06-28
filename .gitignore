@@ -207,3 +207,10 @@ swarm_venv/
 
 # Accidental shell artifacts from malformed multiline CLI commands (repo root).
 /--*
+
+# Miner workspace — model weights downloaded on VPS (see scripts/vps/download_champion.sh)
+champion_model/
+my_agent/*.pt
+my_agent/*.onnx
+my_agent/*.json
+Submission/
