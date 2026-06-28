@@ -11,13 +11,32 @@ err() { echo -e "\033[31m[ERROR]\033[0m $*" >&2; exit 1; }
 
 require_root_tools() {
   command -v git >/dev/null || err "git not found"
-  command -v docker >/dev/null || err "docker not found — install Docker before bootstrap"
+}
+
+ensure_docker() {
+  if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
+    ok "Docker daemon reachable"
+    return
+  fi
+  if command -v dockerd >/dev/null; then
+    info "Starting Docker daemon (Vast container has no systemd)..."
+    mkdir -p /var/run/docker
+    if ! pgrep -x dockerd >/dev/null 2>&1; then
+      nohup dockerd --host=unix:///var/run/docker.sock > /var/log/dockerd.log 2>&1 &
+    fi
+    for _ in $(seq 1 30); do
+      docker info >/dev/null 2>&1 && return
+      sleep 2
+    done
+  fi
+  err "Docker not available — install docker.io and ensure daemon is running"
 }
 
 install_system_deps() {
-  if [[ -x "$REPO_ROOT/scripts/miner/install_dependencies.sh" ]]; then
+  local deps_script="$REPO_ROOT/scripts/miner/install_dependencies.sh"
+  if [[ -f "$deps_script" ]]; then
     info "Installing system dependencies..."
-    bash "$REPO_ROOT/scripts/miner/install_dependencies.sh"
+    bash "$deps_script"
   else
     err "scripts/miner/install_dependencies.sh not found"
   fi
@@ -58,6 +77,7 @@ quick_smoke_test() {
 main() {
   info "Repo root: $REPO_ROOT"
   require_root_tools
+  ensure_docker
   install_system_deps
   install_python_env
   activate_env
