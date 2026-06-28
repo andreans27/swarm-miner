@@ -16,7 +16,7 @@ require_root_tools() {
 ensure_docker() {
   if command -v docker >/dev/null && docker info >/dev/null 2>&1; then
     ok "Docker daemon reachable"
-    return
+    return 0
   fi
   if command -v dockerd >/dev/null; then
     info "Starting Docker daemon (Vast container has no systemd)..."
@@ -25,11 +25,15 @@ ensure_docker() {
       nohup dockerd --host=unix:///var/run/docker.sock > /var/log/dockerd.log 2>&1 &
     fi
     for _ in $(seq 1 30); do
-      docker info >/dev/null 2>&1 && return
+      if docker info >/dev/null 2>&1; then
+        ok "Docker daemon started"
+        return 0
+      fi
       sleep 2
     done
   fi
-  err "Docker not available — install docker.io and ensure daemon is running"
+  info "Docker unavailable — continuing with Python env only (benchmark needs Docker-capable host)"
+  return 1
 }
 
 install_system_deps() {
@@ -54,8 +58,12 @@ activate_env() {
 
 verify_swarm_cli() {
   info "Running swarm doctor..."
-  swarm doctor || err "swarm doctor failed — fix environment before training"
-  ok "swarm doctor passed"
+  if swarm doctor; then
+    ok "swarm doctor passed"
+    return 0
+  fi
+  info "swarm doctor reported issues — check Docker if benchmark is required"
+  return 0
 }
 
 download_champion_if_missing() {
@@ -77,7 +85,7 @@ quick_smoke_test() {
 main() {
   info "Repo root: $REPO_ROOT"
   require_root_tools
-  ensure_docker
+  ensure_docker || true
   install_system_deps
   install_python_env
   activate_env
